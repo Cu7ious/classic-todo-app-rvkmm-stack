@@ -1,9 +1,67 @@
 import { css } from "@emotion/react";
 import { useContext, useState } from "react";
-import { apiDesc, apiURL, capitalize, TodoItem } from "~/utils";
-import axios from "axios";
-
+import { capitalize, TodoItem } from "~/utils";
+import { saveAllResolved, createItem } from "~/API/todos";
 import { AppContext } from "~/appState";
+
+const InputBox = () => {
+  const state = useContext(AppContext);
+  const [inputValue, setInputValue] = useState("");
+  const isEmpty = state.items.length === 0;
+
+  function markAllAsResolved() {
+    const ids = state.items.map(itm => itm._id);
+    const resolved = !state.items.every(itm => itm.resolved);
+    saveAllResolved(ids, resolved).then(() => {
+      const items = state.items.map(itm => {
+        itm.resolved = resolved;
+        return itm;
+      });
+      state.setState({ ...state, items });
+    });
+  }
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(event.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      createItem(capitalize(inputValue)).then(res => {
+        const newItems = [...state.items];
+        const newItem: TodoItem = { ...res.data, editing: false };
+        newItems.push(newItem);
+        state.setState({ ...state, items: newItems });
+        setInputValue("");
+      });
+    } else if (e.key === "Escape") {
+      setInputValue("");
+    }
+  };
+
+  return (
+    <div css={inputForm}>
+      {!isEmpty && (
+        <span
+          css={control}
+          onClick={markAllAsResolved}
+        >
+          &#x025BE;
+        </span>
+      )}
+      <input
+        value={inputValue}
+        autoFocus={true}
+        css={input}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        type="text"
+      />
+    </div>
+  );
+};
+
+export default InputBox;
 
 const inputForm = css`
   display: inline-block;
@@ -41,99 +99,3 @@ const input = css`
   font-size: 30px;
   font-weight: 100;
 `;
-
-const InputBox = () => {
-  const state = useContext(AppContext);
-  const [inputValue, setInputValue] = useState("");
-
-  const isEmpty = state.items.length === 0;
-
-  async function createItem(content: string) {
-    try {
-      const response = await axios.post<apiDesc>(`${apiURL}/todos`, {
-        content,
-        resolved: false,
-      });
-      const newItems = state.items;
-      const newItem = response.data;
-      newItem.editing = false;
-      newItems.push(response.data as TodoItem);
-      state.setState({ ...state, items: newItems });
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.log("Axios Error:", error);
-        // setError(error.message);
-      } else {
-        console.log("Unexpected Error:", error);
-        // setError("An unexpected error occurred");
-      }
-    } finally {
-      // ??? pushNotification("Item was saved")
-    }
-  }
-
-  async function markAllAsDone() {
-    let response;
-    try {
-      const resolved = !state.items.every(itm => itm.resolved);
-      response = await axios.put<apiDesc>(`${apiURL}/todos/update-all`, {
-        ids: state.items.filter(itm => itm._id),
-        update: { resolved },
-      });
-      const items = state.items.map(itm => {
-        itm.resolved = resolved;
-        return itm;
-      });
-      console.log(items);
-      state.setState({ ...state, items });
-    } catch (error) {
-      response = error;
-      if (axios.isAxiosError(error)) {
-        console.log("Axios Error:", error);
-        // setError(error.message);
-      } else {
-        console.log("Unexpected Error:", error);
-        // setError("An unexpected error occurred");
-      }
-    } finally {
-      // ??? pushNotification("Item was saved")
-    }
-    return response;
-  }
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(event.target.value);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      createItem(capitalize(inputValue));
-      setInputValue("");
-    } else if (e.key === "Escape") {
-      setInputValue("");
-    }
-  };
-
-  return (
-    <div css={inputForm}>
-      {!isEmpty && (
-        <span
-          css={control}
-          onClick={markAllAsDone}
-        >
-          &#x025BE;
-        </span>
-      )}
-      <input
-        value={inputValue}
-        autoFocus={true}
-        css={input}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        type="text"
-      />
-    </div>
-  );
-};
-
-export default InputBox;
