@@ -1,10 +1,11 @@
 import { css } from "@emotion/react";
 import { useContext, useEffect, useState } from "react";
-import axios from "axios";
+import { AxiosResponse, isAxiosError } from "axios";
 
 import { AppContext } from "~/appState";
-import { apiDesc, apiURL } from "~/utils";
-import { filterItems } from "~/utils";
+import { ApiDesc } from "~/API";
+import { getAllItems, deleteItemById, updateContentById, updateResolvedById } from "~/API/todos";
+import { filterItems, isKeyboardEvent } from "~/utils";
 import TodoItemBox from "./TodoItem";
 
 const list = css`
@@ -26,11 +27,10 @@ export default function TodoItems() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get<apiDesc[]>(`${apiURL}/todos`);
-        // console.log(response.data);
+        const response = await getAllItems();
         state.setState && state.setState({ ...state, items: response.data });
       } catch (error) {
-        if (axios.isAxiosError(error)) {
+        if (isAxiosError(error)) {
           setError(error.message);
         } else {
           setError("An unexpected error occurred");
@@ -42,65 +42,6 @@ export default function TodoItems() {
     fetchData();
   }, []);
 
-  async function updateContent(id: string, content: string) {
-    try {
-      const response = await axios.put<apiDesc>(`${apiURL}/todos/${id}`, { content });
-      const updatedIdx = state.items.findIndex(itm => itm._id === id);
-      const updatedItems = state.items;
-      updatedItems[updatedIdx] = { ...response.data, editing: false };
-      state.setState({ ...state, items: updatedItems });
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.log("Axios Error:", error);
-        // setError(error.message);
-      } else {
-        console.log("Unexpected Error:", error);
-        // setError("An unexpected error occurred");
-      }
-    } finally {
-      // ??? pushNotification("Item was saved")
-    }
-  }
-
-  async function updateResolved(id: string, resolved: boolean) {
-    try {
-      const response = await axios.put<apiDesc>(`${apiURL}/todos/${id}`, { resolved });
-      const updatedIdx = state.items.findIndex(itm => itm._id === id);
-      const updatedItems = state.items;
-      updatedItems[updatedIdx] = { ...response.data, editing: false };
-      state.setState({ ...state, items: updatedItems });
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.log("Axios Error:", error);
-        // setError(error.message);
-      } else {
-        console.log("Unexpected Error:", error);
-        // setError("An unexpected error occurred");
-      }
-    } finally {
-      // ??? pushNotification("Item was saved")
-    }
-  }
-
-  async function deleteItem(id: string) {
-    let response;
-    try {
-      response = await axios.delete<apiDesc>(`${apiURL}/todos/${id}`);
-    } catch (error) {
-      response = error;
-      if (axios.isAxiosError(error)) {
-        console.log("Axios Error:", error);
-        // setError(error.message);
-      } else {
-        console.log("Unexpected Error:", error);
-        // setError("An unexpected error occurred");
-      }
-    } finally {
-      // ??? pushNotification("Item was saved")
-    }
-    return response;
-  }
-
   function editItem(id: string, e: any) {
     const items = state.items;
     const itemIdx = state.items.findIndex(item => item._id === id);
@@ -108,11 +49,11 @@ export default function TodoItems() {
     state.setState && state.setState({ ...state, items });
   }
 
-  // Explicitly defining the type guard for keyboard events
-  const isKeyboardEvent = (
-    event: React.FocusEvent<HTMLInputElement> | React.KeyboardEvent<HTMLInputElement>
-  ): event is React.KeyboardEvent<HTMLInputElement> => {
-    return (event as React.KeyboardEvent<HTMLInputElement>).key !== undefined;
+  const _saveEditedItemCallback = (res: AxiosResponse<ApiDesc>, id: string) => {
+    const updatedIdx = state.items.findIndex(itm => itm._id === id);
+    const updatedItems = state.items;
+    updatedItems[updatedIdx] = { ...res.data, editing: false };
+    state.setState({ ...state, items: updatedItems });
   };
 
   function saveEditedItem(
@@ -126,16 +67,16 @@ export default function TodoItems() {
       if (e.code === "Escape") return;
       if (e.code === "Enter") {
         items[index].editing = false;
-        updateContent(id, items[index].content);
+        updateContentById(id, items[index].content).then(res => _saveEditedItemCallback(res, id));
       }
     } else {
       items[index].editing = false;
-      updateContent(id, items[index].content);
+      updateContentById(id, items[index].content).then(res => _saveEditedItemCallback(res, id));
     }
   }
 
   function removeItem(id: string) {
-    deleteItem(id).then(res => {
+    deleteItemById(id).then(res => {
       if ((res as any)?.status === 204) {
         const items = state.items;
         const index = state.items.findIndex(item => item._id === id);
@@ -151,13 +92,17 @@ export default function TodoItems() {
     state.setState && state.setState({ ...state, items: state.items });
   }
 
-  function toggleMarkAsDone(_id: string) {
-    const toggledResolve = !state.items.filter(item => item._id === _id)[0].resolved;
-    updateResolved(_id, toggledResolve);
+  function toggleMarkAsDone(id: string) {
+    const toggledResolve = !state.items.filter(item => item._id === id)[0].resolved;
+    updateResolvedById(id, toggledResolve).then(res => {
+      const updatedIdx = state.items.findIndex(itm => itm._id === id);
+      const updatedItems = state.items;
+      updatedItems[updatedIdx] = { ...res.data, editing: false };
+      state.setState({ ...state, items: updatedItems });
+    });
   }
 
   if (loading) return <div css={preDataState}>Loading...</div>;
-  // debugger;
   if (error) return <div css={preDataState}>Error: {error}</div>;
 
   return state.items.length > 0 ? (

@@ -1,5 +1,3 @@
-export const apiURL = import.meta.env.VITE_API_URL;
-
 export enum Filter {
   ALL = "all",
   REMAINED = "remained",
@@ -20,11 +18,6 @@ export interface TodoItem {
   editing?: boolean;
 }
 
-export interface apiDesc extends TodoItem {
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export function capitalize (text: string): string {
   return text.trim()
     .replace(
@@ -43,3 +36,10 @@ export function filterItems(items: TodoItem[], filter: string): TodoItem[] {
       return items;
   }
 }
+
+  // Type guard for keyboard events
+  export const isKeyboardEvent = (
+    event: React.FocusEvent<HTMLInputElement> | React.KeyboardEvent<HTMLInputElement>
+  ): event is React.KeyboardEvent<HTMLInputElement> => {
+    return (event as React.KeyboardEvent<HTMLInputElement>).key !== undefined;
+  };
