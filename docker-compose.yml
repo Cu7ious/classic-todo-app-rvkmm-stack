@@ -1,0 +1,42 @@
+services:
+  # postgres:
+  #   image: postgres:16
+  #   container_name: feathers_chat_db
+  #   environment:
+  #     POSTGRES_USER: myuser
+  #     POSTGRES_PASSWORD: mypassword
+  #     POSTGRES_DB: fjs_chat
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:7
+    container_name: todo-api-db-service-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todoapi-service-node
+    working_dir: /app
+    volumes:
+      - .:/usr/app/
+      - /usr/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://todo-api-db-service-mongo:27017/classic-todo-mongo
+      PORT: 3000
+    command: npm start
+
+volumes:
+  # postgres_data:
+  mongo_data:
